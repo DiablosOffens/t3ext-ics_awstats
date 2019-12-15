@@ -312,12 +312,16 @@ class tx_icsawstats_awstats {
 		putenv ('AWS_TBR_BGCOLOR='. self::modifyHTMLColor($TBE_TEMPLATE->bgColor4,+15,+15,+15));
 		putenv ('AWS_INCL_DECODEUTFKEYS='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
 		putenv ('AWS_INCL_GEOIP='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
+		putenv ('AWS_INCL_GEOIP2='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
 		putenv ('AWS_PATH_TO_GEOIP='.$this->ext_conf['pathToGeoIPDat']);
 		if ($this->ext_conf['enableDecodeUTFKeys']) {
 			putenv ('AWS_INCL_DECODEUTFKEYS='. $this->conf['awstatsFullDir'].'decodeutfkeys.inc.conf');
 		}
 		if ($this->ext_conf['enableGeoIP']) {
 			putenv ('AWS_INCL_GEOIP='. $this->conf['awstatsFullDir'].'geoip.inc.conf');
+		}
+		if ($this->ext_conf['enableGeoIP2']) {
+			putenv ('AWS_INCL_GEOIP2='. $this->conf['awstatsFullDir'].'geoip2.inc.conf');
 		}
 
 		// building the command line parameters for awstats.pl
@@ -389,6 +393,7 @@ class tx_icsawstats_awstats {
 			$env['AWS_TBR_BGCOLOR'] = getenv('AWS_TBR_BGCOLOR');
 			$env['AWS_INCL_DECODEUTFKEYS'] = getenv('AWS_INCL_DECODEUTFKEYS');
 			$env['AWS_INCL_GEOIP'] = getenv('AWS_INCL_GEOIP');
+			$env['AWS_INCL_GEOIP2'] = getenv('AWS_INCL_GEOIP2');
 			$env['AWS_PATH_TO_GEOIP'] = getenv('AWS_PATH_TO_GEOIP');
 
 			\TYPO3\CMS\Core\Utility\DebugUtility::debug($env);
@@ -431,12 +436,16 @@ class tx_icsawstats_awstats {
 		putenv ('AWS_CACHE_DIR='. $aws_cache_dir);
 		putenv ('AWS_INCL_DECODEUTFKEYS='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
 		putenv ('AWS_INCL_GEOIP='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
+		putenv ('AWS_INCL_GEOIP2='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
 		putenv ('AWS_PATH_TO_GEOIP='.$this->ext_conf['pathToGeoIPDat']);
 		if ($this->ext_conf['enableDecodeUTFKeys']) {
 			putenv ('AWS_INCL_DECODEUTFKEYS='. $this->conf['awstatsFullDir'].'decodeutfkeys.inc.conf');
 		}
 		if ($this->ext_conf['enableGeoIP']) {
 			putenv ('AWS_INCL_GEOIP='. $this->conf['awstatsFullDir'].'geoip.inc.conf');
+		}
+		if ($this->ext_conf['enableGeoIP2']) {
+			putenv ('AWS_INCL_GEOIP2='. $this->conf['awstatsFullDir'].'geoip2.inc.conf');
 		}
 
 		// building the command line parameters for awstats.pl

@@ -10,5 +10,8 @@ enableDecodeUTFKeys = 0
   # cat=basic; type=boolean; label=Enable Plugin GeoIP: Country chart is built from an Internet IP-Country database. This plugin reduces AWStats speed of 8%. (Perl modules required: Geo::IP or Geo::IP::PurePerl)
 enableGeoIP = 0
 
+  # cat=basic; type=boolean; label=Enable Plugin GeoIP2: Country chart is built from an Internet IP-Country database. This plugin reduces AWStats speed. (Perl modules required: GeoIP2::Database::Reader)
+enableGeoIP2 = 0
+
   # cat=basic; type=string; label=Path to GeoIP.dat: Path to the GeoIP.dat file. Enter the full path to the DAT file including the file itself (e.g. /usr/share/GeoIP/GeoIP.dat on Linux or C:\usr\share\GeoIP\GeoIP.dat on Windows). This value will only take effect if you enable the GeoIP plugin.
 pathToGeoIPDat = /usr/share/GeoIP/GeoIP.dat
