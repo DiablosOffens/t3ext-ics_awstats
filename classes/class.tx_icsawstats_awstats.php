@@ -245,6 +245,26 @@ class tx_icsawstats_awstats {
 		return true;
 	}
 
+    /**
+     * Modifies a HTML Hex color by adding/subtracting $R,$G and $B integers
+     *
+     * @param string $color A hexadecimal color code, #xxxxxx
+     * @param int $R Offset value 0-255
+     * @param int $G Offset value 0-255
+     * @param int $B Offset value 0-255
+     * @return string A hexadecimal color code, #xxxxxx, modified according to input vars
+     * @see modifyHTMLColorAll()
+     * @deprecated since TYPO3 CMS 7, will be removed in TYPO3 CMS 8
+     */
+    public static function modifyHTMLColor($color, $R, $G, $B)
+    {
+        // This takes a hex-color (# included!) and adds $R, $G and $B to the HTML-color (format: #xxxxxx) and returns the new color
+        $nR = \TYPO3\CMS\Core\Utility\MathUtility::forceIntegerInRange(hexdec(substr($color, 1, 2)) + $R, 0, 255);
+        $nG = \TYPO3\CMS\Core\Utility\MathUtility::forceIntegerInRange(hexdec(substr($color, 3, 2)) + $G, 0, 255);
+        $nB = \TYPO3\CMS\Core\Utility\MathUtility::forceIntegerInRange(hexdec(substr($color, 5, 2)) + $B, 0, 255);
+        return '#' . substr(('0' . dechex($nR)), -2) . substr(('0' . dechex($nG)), -2) . substr(('0' . dechex($nB)), -2);
+    }
+
 	/**
 	 *
 	 * Enter description here ...
@@ -288,8 +308,8 @@ class tx_icsawstats_awstats {
 		putenv ('AWS_BGCOLOR='. $TBE_TEMPLATE->bgColor);
 		putenv ('AWS_TBT_BGCOLOR='. $TBE_TEMPLATE->bgColor5);
 		putenv ('AWS_TB_BGCOLOR='. $TBE_TEMPLATE->bgColor4);
-		putenv ('AWS_TB_COLOR='. GeneralUtility::modifyHTMLColor($TBE_TEMPLATE->bgColor4,-10,-10,-10));
-		putenv ('AWS_TBR_BGCOLOR='. GeneralUtility::modifyHTMLColor($TBE_TEMPLATE->bgColor4,+15,+15,+15));
+		putenv ('AWS_TB_COLOR='. self::modifyHTMLColor($TBE_TEMPLATE->bgColor4,-10,-10,-10));
+		putenv ('AWS_TBR_BGCOLOR='. self::modifyHTMLColor($TBE_TEMPLATE->bgColor4,+15,+15,+15));
 		putenv ('AWS_INCL_DECODEUTFKEYS='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
 		putenv ('AWS_INCL_GEOIP='. $this->conf['awstatsFullDir'].'dummy.inc.conf');
 		putenv ('AWS_PATH_TO_GEOIP='.$this->ext_conf['pathToGeoIPDat']);
