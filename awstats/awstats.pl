@@ -36,8 +36,8 @@ use File::Spec;
 # Defines
 #------------------------------------------------------------------------------
 use vars qw/ $REVISION $VERSION /;
-$REVISION = '20161204';
-$VERSION  = "7.6 (build $REVISION)";
+$REVISION = '20180105';
+$VERSION  = "7.7 (build $REVISION)";
 
 # ----- Constants -----
 use vars qw/
@@ -1351,57 +1351,21 @@ sub debug {
 # Return:		None
 #------------------------------------------------------------------------------
 sub OptimizeArray {
-	my $array = shift;
-	my @arrayunreg = map { UnCompileRegex($_) } @$array;
-	my $notcasesensitive = shift;
-	my $searchlist       = 0;
-	if ($Debug) {
-		debug( "OptimizeArray (notcasesensitive=$notcasesensitive)", 4 );
-	}
-	while ( $searchlist > -1 && @arrayunreg ) {
-		my $elemtoremove = -1;
-	  OPTIMIZELOOP:
-		foreach my $i ( $searchlist .. ( scalar @arrayunreg ) - 1 ) {
+    my ( $array, $notcasesensitive ) = @_;
+    my %seen;
 
-			# Search if $i elem is already treated by another elem
-			foreach my $j ( 0 .. ( scalar @arrayunreg ) - 1 ) {
-				if ( $i == $j ) { next; }
-				my $parami =
-				  $notcasesensitive ? lc( $arrayunreg[$i] ) : $arrayunreg[$i];
-				my $paramj =
-				  $notcasesensitive ? lc( $arrayunreg[$j] ) : $arrayunreg[$j];
-				if ($Debug) {
-					debug( " Compare $i ($parami) to $j ($paramj)", 4 );
-				}
-				if ( index( $parami, $paramj ) > -1 ) {
-					if ($Debug) {
-						debug(
-" Elem $i ($arrayunreg[$i]) already treated with elem $j ($arrayunreg[$j])",
-							4
-						);
-					}
-					$elemtoremove = $i;
-					last OPTIMIZELOOP;
-				}
-			}
-		}
-		if ( $elemtoremove > -1 ) {
-			if ($Debug) {
-				debug(
-					" Remove elem $elemtoremove - $arrayunreg[$elemtoremove]",
-					4 );
-			}
-			splice @arrayunreg, $elemtoremove, 1;
-			$searchlist = $elemtoremove;
-		}
-		else {
-			$searchlist = -1;
-		}
-	}
-	if ($notcasesensitive) {
-		return map { qr/$_/i } @arrayunreg;
-	}
-	return map { qr/$_/ } @arrayunreg;
+    if ($notcasesensitive) {
+
+        # Case insensitive
+        my $uncompiled_regex;
+        return map {
+            $uncompiled_regex = UnCompileRegex($_);
+            !$seen{ lc $uncompiled_regex }++ ? qr/$uncompiled_regex/i : ()
+        } @$array;
+    }
+
+    # Case sensitive
+    return map { !$seen{$_}++ ? $_ : () } @$array;
 }
 
 #------------------------------------------------------------------------------
@@ -1780,22 +1744,24 @@ sub Read_Config {
 		}else{if ($Debug){debug("Unable to open config file: $searchdir$SiteConfig", 2);}}
 	}
 	
-		#CL - Added to open config if full path is passed to awstats 
-	if ( !$FileConfig ) {
-		
-		my $SiteConfigBis = File::Spec->rel2abs($SiteConfig);
-		debug("Finally, try to open an absolute path : $SiteConfigBis", 2);
-	
-		if ( -f $SiteConfigBis && open(CONFIG, "$SiteConfigBis")) {
-			$FileConfig = "$SiteConfigBis";
-			$FileSuffix = '';
-			if ($Debug){debug("Opened config: $SiteConfigBis", 2);}
-			$SiteConfig=$SiteConfigBis;
-		}
-		else {
-			if ($Debug){debug("Unable to open config file: $SiteConfigBis", 2);}
-		}
-	}
+	#CL - Added to open config if full path is passed to awstats
+	# Disabled by LDR for security reason.
+	# If we need to execute config into other dir 
+	#if ( !$FileConfig ) {
+	#	
+	#	my $SiteConfigBis = File::Spec->rel2abs($SiteConfig);
+	#	debug("Finally, try to open an absolute path : $SiteConfigBis", 2);
+	#
+	#	if ( -f $SiteConfigBis && open(CONFIG, "$SiteConfigBis")) {
+	#		$FileConfig = "$SiteConfigBis";
+	#		$FileSuffix = '';
+	#		if ($Debug){debug("Opened config: $SiteConfigBis", 2);}
+	#		$SiteConfig=$SiteConfigBis;
+	#	}
+	#	else {
+	#		if ($Debug){debug("Unable to open config file: $SiteConfigBis", 2);}
+	#	}
+	#}
 	
 	if ( !$FileConfig ) {
 		if ($DEBUGFORCED || !$ENV{'GATEWAY_INTERFACE'}){
@@ -1895,7 +1861,7 @@ sub Parse_Config {
 					$includeFile = "$1$includeFile";
 				}
 			}
-			if ( $level > 1 ) {
+			if ( $level > 1 && $^V lt v5.6.0 ) {
 				warning(
 "Warning: Perl versions before 5.6 cannot handle nested includes"
 				);
@@ -2205,7 +2171,10 @@ sub Parse_Config {
 		}
 
 		# Plugins
-		if ( $param =~ /^LoadPlugin/ ) { push @PluginsToLoad, $value; next; }
+		if ( $param =~ /^LoadPlugin/ ) {
+			$value =~ s/[^a-zA-Z0-9_\/\.\+:=\?\s%\-]//g;		# Sanitize plugin name and string param because it is used later in an eval.
+			push @PluginsToLoad, $value; next; 
+		}
 
 	  # Other parameter checks we need to put after MaxNbOfExtra and MinHitExtra
 		if ( $param =~ /^MaxNbOf(\w+)/ ) { $MaxNbOf{$1} = $value; next; }
@@ -3166,8 +3135,10 @@ sub Read_Plugins {
 					'geoipfree'            => 'u',
 					'geoip'                => 'ou',
 					'geoip6'               => 'ou',
+					'geoip2'               => 'ou',
 					'geoip_region_maxmind' => 'mou',
 					'geoip_city_maxmind'   => 'mou',
+                    'geoip2_city'          => 'mou',
 					'geoip_isp_maxmind'    => 'mou',
 					'geoip_org_maxmind'    => 'mou',
 					'timezone'             => 'ou',
@@ -3251,7 +3222,7 @@ sub Read_Plugins {
 						}
 						my $ret;    # To get init return
 						my $initfunction =
-						  "\$ret=Init_$pluginname('$pluginparam')";
+						  "\$ret=Init_$pluginname('$pluginparam')";		# Note that pluginname and pluginparam were sanitized when reading cong file entry 'LoadPlugin'
 						my $initret = eval("$initfunction");
 						if ( $initret && $initret eq 'xxx' ) {
 							$initret =
@@ -3342,7 +3313,8 @@ sub Read_Plugins {
 # In output mode, geo ip plugins are not loaded, so message changes are done here (can't be done in plugin init function)
 	if (   $PluginsLoaded{'init'}{'geoip'}
 		|| $PluginsLoaded{'init'}{'geoip6'}
-		|| $PluginsLoaded{'init'}{'geoipfree'} )
+		|| $PluginsLoaded{'init'}{'geoipfree'}
+		|| $PluginsLoaded{'init'}{'geoip2'})
 	{
 		$Message[17] = $Message[25] = $Message[148];
 	}
@@ -5933,9 +5905,9 @@ sub Read_History_With_TmpUpdate {
 						Save_History( "sider_$code", $year, $month, $date );
 						delete $SectionsToSave{"sider_$code"};
 						if ($withpurge) {
-							%_sider_h   = ();
-							%_referer_h = ();
-							%_err_host_h = ();
+							%{$_sider_h{$code}} = ();
+							%{$_referer_h{$code}} = ();
+							%{$_err_host_h{$code}} = ();
 						}
 					}
 					if ( !scalar %SectionsToLoad ) {
@@ -7904,6 +7876,22 @@ sub DecodeEncodedString {
 }
 
 #------------------------------------------------------------------------------
+# Function:     Similar to DecodeEncodedString, but decode only
+#               RFC3986 "unreserved characters"
+# Parameters:   stringtodecode
+# Input:        None
+# Output:       None
+# Return:       decodedstring
+#------------------------------------------------------------------------------
+sub DecodeRFC3986UnreservedString {
+	my $stringtodecode = shift;
+
+	$stringtodecode =~ s/%([46][1-9A-F]|[57][0-9A]|3[0-9]|2D|2E|5F|7E)/pack("C", hex($1))/ieg;
+
+	return $stringtodecode;
+}
+
+#------------------------------------------------------------------------------
 # Function:     Decode a precompiled regex value to a common regex value
 # Parameters:   compiledregextodecode
 # Input:        None
@@ -8104,6 +8092,9 @@ sub Format_Bytes {
 	my $fudge = 1;
 
 # Do not use exp/log function to calculate 1024power, function make segfault on some unix/perl versions
+	if ( $bytes >= ( $fudge << 40 ) ) {
+		return sprintf( "%.2f", $bytes / 1099511627776 ) . " $Message[179]";
+	}
 	if ( $bytes >= ( $fudge << 30 ) ) {
 		return sprintf( "%.2f", $bytes / 1073741824 ) . " $Message[110]";
 	}
@@ -8558,7 +8549,7 @@ sub PrintCLIHelp{
 		'browsers',       'domains', 'operating_systems', 'robots',
 		'search_engines', 'worms'
 	);
-	print "----- $PROG $VERSION (c) 2000-2016 Laurent Destailleur -----\n";
+	print "----- $PROG $VERSION (c) 2000-2018 Laurent Destailleur -----\n";
 	print
 "AWStats is a free web server logfile analyzer to show you advanced web\n";
 	print "statistics.\n";
@@ -8892,7 +8883,7 @@ sub HTMLShowURLInfo {
 			{    # URL seems to be extracted from a proxy log file
 				print "<a href=\""
 				  . XMLEncode("$newkey")
-				  . "\" target=\"url\" rel=\"nofollow\">"
+				  . "\" target=\"url\" rel=\"nofollow noopener noreferrer\">"
 				  . XMLEncode($nompage) . "</a>";
 			}
 			elsif ( $newkey =~ /^\// )
@@ -8907,7 +8898,7 @@ sub HTMLShowURLInfo {
 				}
 				print "<a href=\""
 				  . XMLEncode("$urlprot://$SiteDomain$newkey")
-				  . "\" target=\"url\" rel=\"nofollow\">"
+				  . "\" target=\"url\" rel=\"nofollow noopener noreferrer\">"
 				  . XMLEncode($nompage) . "</a>";
 			}
 			else {
@@ -9021,9 +9012,12 @@ sub DefinePerlParsingFormat {
 			);
 		}
 		elsif ( $LogFormat eq '4' ) {    # Same than "%h %l %u %t \"%r\" %>s %b"
-			 # %u (user) is "(.+)" instead of "[^ ]+" because can contain space (Lotus Notes).
-			$PerlParsingFormat =
-"([^ ]+) [^ ]+ (.+) \\[([^ ]+) [^ ]+\\] \\\"([^ ]+) ([^ ]+)(?: [^\\\"]+|)\\\" ([\\d|-]+) ([\\d|-]+)";
+			# %u (user) is "(.+)" instead of "[^ ]+" because can contain space (Lotus Notes).
+			# Sample: 10.100.10.45 - BMAA\will.smith [01/Jul/2013:07:17:28 +0200] "GET /Download/__Omnia__Aus- und Weiterbildung__Konsular- und Verwaltungskonferenz, Programm.doc HTTP/1.1" 200 9076810
+#			$PerlParsingFormat = 
+#"([^ ]+) [^ ]+ (.+) \\[([^ ]+) [^ ]+\\] \\\"([^ ]+) ([^ ]+)(?: [^\\\"]+|)\\\" ([\\d|-]+) ([\\d|-]+)";
+			$PerlParsingFormat = 
+"([^ ]+) [^ ]+ (.+) \\[([^ ]+) [^ ]+\\] \\\"([^ ]+) (.+) [^\\\"]+\\\" ([\\d|-]+) ([\\d|-]+)";
 			$pos_host    = 0;
 			$pos_logname = 1;
 			$pos_date    = 2;
@@ -9192,8 +9186,14 @@ sub DefinePerlParsingFormat {
 				$PerlParsingFormat .=
 "([^$LogSeparatorWithoutStar]+T[^$LogSeparatorWithoutStar]+)(Z|[-+\.]\\d\\d[:\\.\\dZ]*)?";
 			}
+			elsif ( $f =~ /%time6$/ ) {	# dd/mm/yyyy, hh:mm:ss - added additional type to format for IIS date -DWG 12/8/2008
+				$pos_date = $i;	
+				$i++; 
+				push @fieldlib, 'date';
+				$PerlParsingFormat .= "([^,]+,[^,]+)";
+			}
 
-			# Special for methodurl and methodurlnoprot
+			# Special for methodurl, methodurlprot and methodurlnoprot
 			elsif ( $f =~ /%methodurl$/ ) {
 				$pos_method = $i;
 				$i++;
@@ -9205,6 +9205,16 @@ sub DefinePerlParsingFormat {
 
 #"\\\"([^$LogSeparatorWithoutStar]+) ([^$LogSeparatorWithoutStar]+) [^\\\"]+\\\"";
 "\\\"([^$LogSeparatorWithoutStar]+) ([^$LogSeparatorWithoutStar]+)(?: [^\\\"]+|)\\\"";
+			}
+			elsif ( $f =~ /%methodurlprot$/ ) {
+				$pos_method = $i;
+				$i++;
+				push @fieldlib, 'method';
+				$pos_url = $i;
+				$i++;
+				push @fieldlib, 'url';
+				$PerlParsingFormat .=
+"\\\"([^$LogSeparatorWithoutStar]+) ([^\\\"]+) ([^\\\"]+)\\\"";
 			}
 			elsif ( $f =~ /%methodurlnoprot$/ ) {
 				$pos_method = $i;
@@ -14293,7 +14303,7 @@ sub HTMLMainDownloads{
 		if ($cnt > 4){last;}
 	}
 	# Graph the top five in a pie chart
-	if (scalar keys %_downloads > 1){
+	if (($Totalh > 0) and (scalar keys %_downloads > 1)){
 		foreach my $pluginname ( keys %{ $PluginsLoaded{'ShowGraph'} } )
 		{
 			my @blocklabel = ();
@@ -14903,13 +14913,23 @@ sub HTMLMainHosts{
 			my @blocklabel = ();
 			my @valdata = ();
 			my @valcolor = ($color_p);
+
+			my $cnt = 0;
+			my $suma = 0;
+			foreach my $key (@keylist) {
+               $suma=$suma + ( $_host_h{$key});
+               $cnt++;
+               if ($cnt > 4) { last; }
+			}
+			
 			my $cnt = 0;
 			foreach my $key (@keylist) {
-				push @valdata, int( $_host_h{$key} / $TotalHits * 1000 ) / 10;
-				push @blocklabel, "$key";
-				$cnt++;
-				if ($cnt > 4) { last; }
+               push @valdata, int( $_host_h{$key} / $suma * 1000 ) / 10;
+               push @blocklabel, "$key";
+               $cnt++;
+               if ($cnt > 4) { last; }
 			}
+			
 			print "<tr><td colspan=\"7\">";
 			my $function = "ShowGraph_$pluginname";
 			&$function(
@@ -17127,7 +17147,9 @@ if ( $ENV{'GATEWAY_INTERFACE'} ) {    # Run from a browser as CGI
 	# No update but report by default when run from a browser
 	$UpdateStats = ( $QueryString =~ /update=1/i ? 1 : 0 );
 
-	if ( $QueryString =~ /config=([^&]+)/i ) { $SiteConfig = &Sanitize("$1"); }
+	if ( $QueryString =~ /config=([^&]+)/i ) { 
+		$SiteConfig = &Sanitize("$1");
+	}
 	if ( $QueryString =~ /diricons=([^&]+)/i ) { $DirIcons = "$1"; }
 	if ( $QueryString =~ /pluginmode=([^&]+)/i ) {
 		$PluginMode = &Sanitize( "$1", 1 );
@@ -17172,10 +17194,13 @@ if ( $ENV{'GATEWAY_INTERFACE'} ) {    # Run from a browser as CGI
 	# If migrate
 	if ( $QueryString =~ /(^|-|&|&amp;)migrate=([^&]+)/i ) {
 		$MigrateStats = &Sanitize("$2");
+
 		$MigrateStats =~ /^(.*)$PROG(\d{0,2})(\d\d)(\d\d\d\d)(.*)\.txt$/;
-		$SiteConfig = $5 ? $5 : 'xxx';
+		$SiteConfig = &Sanitize($5 ? $5 : 'xxx');
 		$SiteConfig =~ s/^\.//;    # SiteConfig is used to find config file
 	}
+
+	$SiteConfig =~ s/\.\.//g; 		# Avoid directory transversal
 }
 else {                             # Run from command line
 	$DebugMessages = 1;
@@ -17185,9 +17210,10 @@ else {                             # Run from command line
 
 		# If migrate
 		if ( $ARGV[$_] =~ /(^|-|&|&amp;)migrate=([^&]+)/i ) {
-			$MigrateStats = "$2";
+			$MigrateStats = &Sanitize("$2");
+
 			$MigrateStats =~ /^(.*)$PROG(\d{0,2})(\d\d)(\d\d\d\d)(.*)\.txt$/;
-			$SiteConfig = $5 ? $5 : 'xxx';
+			$SiteConfig = &Sanitize($5 ? $5 : 'xxx');
 			$SiteConfig =~ s/^\.//;    # SiteConfig is used to find config file
 			next;
 		}
@@ -17214,7 +17240,9 @@ else {                             # Run from command line
 	# Update with no report by default when run from command line
 	$UpdateStats = 1;
 
-	if ( $QueryString =~ /config=([^&]+)/i ) { $SiteConfig = &Sanitize("$1"); }
+	if ( $QueryString =~ /config=([^&]+)/i ) { 
+		$SiteConfig = &Sanitize("$1"); 
+	}
 	if ( $QueryString =~ /diricons=([^&]+)/i ) { $DirIcons = "$1"; }
 	if ( $QueryString =~ /pluginmode=([^&]+)/i ) {
 		$PluginMode = &Sanitize( "$1", 1 );
@@ -17279,6 +17307,8 @@ else {                             # Run from command line
 		$ShowDirectOrigin = 1;
 		$QueryString =~ s/showdirectorigin[^&]*//i;
 	}
+	
+	$SiteConfig =~ s/\.\.//g; 
 }
 if ( $QueryString =~ /(^|&|&amp;)staticlinks/i ) {
 	$StaticLinks = "$PROG.$SiteConfig";
@@ -18391,6 +18421,25 @@ if ( $UpdateStats && $FrameName ne 'index' && $FrameName ne 'mainleft' )
 			next;
 		}
 
+		# Reformat date for IIS date -DWG 12/8/2008
+		if($field[$pos_date] =~ /,/)
+		{
+			$field[$pos_date] =~ s/,//;
+			my @split_date = split(' ',$field[$pos_date]);
+			my @dateparts2= split('/',$split_date[0]);
+			my @timeparts2= split(':',$split_date[1]);
+			#add leading zero
+			for($dateparts2[0],$dateparts2[1], $timeparts2[0], $timeparts2[1],  $timeparts2[2])			{
+				if($_ =~ /^.$/)
+				{
+					$_ = '0'.$_;
+				}
+
+			}
+
+			$field[$pos_date] = "$dateparts2[2]-$dateparts2[0]-$dateparts2[1] $timeparts2[0]:$timeparts2[1]:$timeparts2[2]";
+		}
+		
 		$field[$pos_date] =~
 		  tr/,-\/ \tT/::::::/s;  # " \t" is used instead of "\s" not known with tr
 		my @dateparts =
@@ -18692,6 +18741,14 @@ if ( $UpdateStats && $FrameName ne 'index' && $FrameName ne 'mainleft' )
 	# We keep a clean $field[$pos_url] and
 	# we store original value for urlwithnoquery, tokenquery and standalonequery
 	#---------------------------------------------------------------------------
+
+		# Decode "unreserved characters" - URIs with common ASCII characters
+		# percent-encoded are equivalent to their unencoded versions.
+		#
+		# See section 2.3. of RFC 3986.
+
+		$field[$pos_url] = DecodeRFC3986UnreservedString($field[$pos_url]);
+
 		if ($URLNotCaseSensitive) { $field[$pos_url] = lc( $field[$pos_url] ); }
 
 # Possible URL syntax for $field[$pos_url]: /mydir/mypage.ext?param1=x&param2=y#aaa, /mydir/mypage.ext#aaa, /
@@ -19013,7 +19070,7 @@ if ( $UpdateStats && $FrameName ne 'index' && $FrameName ne 'mainleft' )
 
 		# Analyze: Robot from robot database (=> countedtraffic=4 if robot)
 		#------------------------------------------------------------------
-		if ( !$countedtraffic ) {
+		if ( !$countedtraffic || $countedtraffic == 6) {
 			if ( $pos_agent >= 0 ) {
 				if ($DecodeUA) {
 					$field[$pos_agent] =~ s/%20/_/g;
@@ -19378,6 +19435,9 @@ if ( $UpdateStats && $FrameName ne 'index' && $FrameName ne 'mainleft' )
 				elsif ( $PluginsLoaded{'GetCountryCodeByAddr'}{'geoipfree'} ) {
 					$Domain = GetCountryCodeByAddr_geoipfree($HostResolved);
 				}
+				elsif ( $PluginsLoaded{'GetCountryCodeByAddr'}{'geoip2'} ) {
+					$Domain = GetCountryCodeByAddr_geoip2($HostResolved);
+				}
 				if ($AtLeastOneSectionPlugin) {
 					foreach my $pluginname (
 						keys %{ $PluginsLoaded{'SectionProcessIp'} } )
@@ -19412,6 +19472,11 @@ if ( $UpdateStats && $FrameName ne 'index' && $FrameName ne 'mainleft' )
 					{
 						$Domain = GetCountryCodeByAddr_geoipfree($Host);
 					}
+					elsif (
+						$PluginsLoaded{'GetCountryCodeByAddr'}{'geoip2'} )
+					{
+						$Domain = GetCountryCodeByAddr_geoip2($Host);
+					}
 					elsif ( $HostResolved =~ /\.(\w+)$/ ) { $Domain = $1; }
 					if ($AtLeastOneSectionPlugin) {
 						foreach my $pluginname (
@@ -19440,6 +19505,11 @@ if ( $UpdateStats && $FrameName ne 'index' && $FrameName ne 'mainleft' )
 						$PluginsLoaded{'GetCountryCodeByName'}{'geoipfree'} )
 					{
 						$Domain = GetCountryCodeByName_geoipfree($HostResolved);
+					}
+					elsif (
+						$PluginsLoaded{'GetCountryCodeByName'}{'geoip2'} )
+					{
+						$Domain = GetCountryCodeByName_geoip2($HostResolved);
 					}
 					elsif ( $HostResolved =~ /\.(\w+)$/ ) { $Domain = $1; }
 					if ($AtLeastOneSectionPlugin) {
@@ -19960,7 +20030,7 @@ s/^(cache|related):[^\+]+//
 													$param =~ s/^ +//;
 													$param =~ s/ +$//;    # Trim
 													$param =~ tr/ /\+/s;
-													if ( ( length $param ) > 0 )
+													if ( ( ( length $param ) > 0 ) and ( ( length $param ) < 80 ) )
 													{
 														$_keyphrases{$param}++;
 													}

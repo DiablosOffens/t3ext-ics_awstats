@@ -1,4 +1,4 @@
-﻿# French message file (eldy@users.sourceforge.net)
+# French message file (eldy@users.sourceforge.net)
 # $Revision$ - $Date$
 PageCode=utf-8
 message0=Inconnu
@@ -177,5 +177,6 @@ message172=Villes
 message173=Versions Opera
 message174=Versions Safari
 message175=Versions Chrome
-message176=Versions Konqueror	
+message176=Versions Konqueror
 message177=
+message178=Téléchargements

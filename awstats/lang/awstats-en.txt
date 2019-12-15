@@ -1,4 +1,4 @@
-﻿# English message file (eldy@users.sourceforge.net)
+# English message file (eldy@users.sourceforge.net)
 # $Revision$ - $Date$
 PageCode=utf-8
 message0=Unknown
@@ -180,3 +180,4 @@ message175=Chrome versions
 message176=Konqueror versions
 message177=,
 message178=Downloads
+message179=TB
