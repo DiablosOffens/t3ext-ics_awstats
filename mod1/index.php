@@ -1,5 +1,7 @@
 <?php
 
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use \TYPO3\CMS\Backend\Utility\BackendUtility;
 use \TYPO3\CMS\Core\Utility\GeneralUtility;
 use \TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
@@ -34,17 +36,25 @@ use \TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
  * @author	Valentin Schmid <valli@icsurselva.ch>
  */
 
-unset($MCONF);
-require('conf.php');
-
-$GLOBALS['LANG']->includeLLFile('EXT:ics_awstats/mod1/locallang.xml');
-$GLOBALS['BE_USER']->modAccess($MCONF, 1);	// This checks permissions and exits if the users has no permission for entry.
+//$GLOBALS['LANG']->includeLLFile('EXT:ics_awstats/mod1/locallang.xml');
+//$GLOBALS['BE_USER']->modAccess($MCONF, 1);	// This checks permissions and exits if the users has no permission for entry.
 
 class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 
 	var $pageinfo;
+	var $moduleName = 'tools_IcsAwstatsTxicsawstatsm1';
 
 	public function __construct() {
+        if (!isset($GLOBALS['TBE_MODULES']['_configuration'][$this->moduleName])) {
+			unset($MCONF);
+			require('conf.php');
+			$GLOBALS['MCONF'] = $MCONF;
+        }
+		else {
+			$GLOBALS['MCONF'] = $GLOBALS['TBE_MODULES']['_configuration'][$this->moduleName];
+		}
+ 		$this->getLanguageService()->includeLLFile('EXT:ics_awstats/mod1/locallang.xml');
+ 		$this->getBackendUser()->modAccess($GLOBALS['MCONF'], TRUE);	// This checks permissions and exits if the users has no permission for entry.
 		parent::init();
 		
 		// Initialize document
@@ -58,6 +68,42 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 			'../' . ExtensionManagementUtility::siteRelPath('ics_awstats') . 'mod1/mod_styles.css'
 		);
 	}	
+
+    /**
+     * Injects the request object for the current request or subrequest
+     * As this controller goes only through the main() method, it is rather simple for now
+     *
+     * @param ServerRequestInterface $request the current request
+     * @param ResponseInterface $response
+     * @return ResponseInterface the response with the content
+     */
+    public function mainAction(ServerRequestInterface $request, ResponseInterface $response)
+    {
+        $GLOBALS['SOBE'] = $this;
+		$this->checkExtObj();
+		$this->main();
+
+        $response->getBody()->write($this->content);
+        return $response;
+    }
+
+    /**
+     * Returns a blank <div>-section with a height
+     *
+     * @param int $dist Padding-top for the div-section (should be margin-top but konqueror (3.1) doesn't like it :-(
+     * @return string HTML content
+     * @deprecated since TYPO3 CMS 7, will be removed in TYPO3 CMS 8
+     */
+    function spacer($dist)
+    {
+        if ($dist > 0) {
+            return '
+
+	<!-- Spacer element -->
+	<div style="padding-top: ' . (int)$dist . 'px;"></div>
+';
+        }
+    }
 	
 	/**
 	 * Main function of the module. Write the content to $this->content
@@ -69,13 +115,15 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 		
 		$this->doc->form='<form action="" method="post">';
 
-		$this->content.= $this->doc->startPage($LANG->getLL('title'));
+		//$this->content.= $this->doc->startPage($LANG->getLL('title'));
 		$this->content.= $this->doc->header($LANG->getLL('title'));
-		$this->content.= $this->doc->spacer(5);
+		$this->content.= $this->spacer(5);
 			
 		// Render content:
 		$this->moduleContent();
-		$this->doc->form='</form>';
+		////$this->doc->form='</form>';
+		//$this->content.= $this->doc->endPage();
+		//$this->content = $this->doc->insertStylesAndJS($this->content);
 		$markers = array();
 		$markers['CONTENT'] = $this->content;
 		
@@ -91,8 +139,6 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 	}
 
 	function printContent()	{
-
-		$this->content.= $this->doc->endPage();
 		echo $this->content;
 	}
 
@@ -107,7 +153,7 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 		if (GeneralUtility::_GP('t3log'))	{
 			$dbg = GeneralUtility::_GP('dbg');
 			$t3log = GeneralUtility::_GP('t3log');
-			$aws_wrapper = BackendUtility::getModuleUrl('tools_txicsawstatsM1', array('t3log' => $t3log));
+			$aws_wrapper = BackendUtility::getModuleUrl($this->moduleName, array('t3log' => $t3log));
 			$aws_wrapper.= ($dbg) ? '&dbg=1' : '';
 			$result = $awstats->call_awstats($t3log, $aws_wrapper, $dbg);
 			if (!is_numeric($result)) {
@@ -274,7 +320,7 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 
 			// button to delete cache files
 			if (($theCodeChecked) && (! $awstats->ext_conf['disableClearCache'])) {
-				$content.= $this->doc->spacer(15);
+				$content.= $this->spacer(15);
 				if (GeneralUtility::_GP('logf_clear_cache')) {
 					$theCode=''.$LANG->getLL('cacheCleared').'';
 				} else {
@@ -365,7 +411,7 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 	function get_log_link_elements(tx_icsawstats_awstats &$awstats_obj, $lfile, $logconfig) {
 		global $LANG;
 		
-		$url = BackendUtility::getModuleUrl('tools_txicsawstatsM1', array(
+		$url = BackendUtility::getModuleUrl($this->moduleName, array(
 			't3log' => $lfile,
 			'dbg' => GeneralUtility::_GP('dbg') ? 1 : 0,
 		));
@@ -379,7 +425,7 @@ class tx_icsawstats_module1 extends \TYPO3\CMS\Backend\Module\BaseScriptClass {
 		if ($awstats_obj->is_set_update_lockfile($lfile)) {
 			$content.= $LANG->getLL('updateInProgress');
 			if ($logconfig['browser_update']) {
-				$rmlockurl = BackendUtility::getModuleUrl('tools_txicsawstatsM1', array(
+				$rmlockurl = BackendUtility::getModuleUrl($this->moduleName, array(
 					'rmlock' => $lfile,
 					'dbg' => GeneralUtility::_GP('dbg') ? 1 : 0,
 				));
@@ -413,9 +459,10 @@ if (defined('TYPO3_MODE') && $TYPO3_CONF_VARS[TYPO3_MODE]['XCLASS']['ext/ics_aws
 
 
 // Make instance:
-$SOBE = GeneralUtility::makeInstance('tx_icsawstats_module1');
-$SOBE->init();
-$SOBE->main();
-$SOBE->printContent();
+//$SOBE = GeneralUtility::makeInstance('tx_icsawstats_module1');
+//$SOBE->init();
+//$SOBE->checkExtObj();
+//$SOBE->main();
+//$SOBE->printContent();
 
 ?>
